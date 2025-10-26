@@ -45,22 +45,21 @@ public class HybridSimulationRunner {
         Hybrid_Scheduler hybrid = new Hybrid_Scheduler(config, fitnessCalc);
 
         // Run simulations
-        Solution acoSolution = runAlgorithm("Standalone ACO", aco);
-        Solution psoSolution = runAlgorithm("Standalone PSO", pso);
+        Solution acoSolution = runAlgorithm("ACO", aco);
+        Solution psoSolution = runAlgorithm("PSO", pso);
         Solution hybridSolution = runAlgorithm("Hybrid ACO-PSO", hybrid);
 
         // Print final report
-        System.out.println("\n--- 🏁 Final Comparison Report ---");
-        System.out.println("----------------------------------------------------------");
-        System.out.printf("| %-20s | %-15s | %-15s |%n", "Algorithm", "Best Fitness", "Time (ms)");
-        System.out.println("----------------------------------------------------------");
+        System.out.println("\n---  Final Comparison Report  ---");
+        System.out.println("--------------------------------------------------------");
+        System.out.printf("%-20s | %-17s | %-15s %n", "Algorithm", "Best Fitness", "Time (ms)");
+        System.out.println("--------------------------------------------------------");
 
-        printReportLine("Standalone ACO", acoSolution);
-        printReportLine("Standalone PSO", psoSolution);
+        printReportLine("ACO", acoSolution);
+        printReportLine("PSO", psoSolution);
         printReportLine("Hybrid ACO-PSO", hybridSolution);
 
-        System.out.println("----------------------------------------------------------");
-        System.out.println("*Lower fitness is better. Fitness of 'Infinity' means no feasible solution was found.");
+        System.out.println("--------------------------------------------------------");
     }
 
     private Solution runAlgorithm(String name, SchedulerInterface scheduler) {
@@ -85,9 +84,19 @@ public class HybridSimulationRunner {
 
     private void printReportLine(String name, Solution solution) {
         long duration = solution.getDuration();
-        System.out.printf("| %-20s | %-15.4f | %-15d |%n",
+
+        // --- CORRECTION: CHECK FOR INFEASIBLE SOLUTION ---
+        String fitnessStr;
+        if (solution.getFitness() == Double.MAX_VALUE) {
+            fitnessStr = "Infinity (Failed)";
+        } else {
+            fitnessStr = String.format("%.4f", solution.getFitness());
+        }
+        // --- END OF CORRECTION ---
+
+        System.out.printf("%-20s | %-17s | %-15d %n", // Changed %-15.4f to %-17s
                 name,
-                solution.getFitness(),
+                fitnessStr,
                 duration);
     }
 

@@ -55,13 +55,25 @@ public class ACO_Scheduler implements SchedulerInterface {
         initialize(vmList, hostList);
         runACO(this.hybridInitGenerations); // Warm up the trails
 
-        // Now generate the population
+        // NOW, we have a "warmed up" globalBestSolution. We must use it.
+
+        // Generate the rest of the population
         List<Solution> population = new ArrayList<>(populationSize);
         for (int i = 0; i < populationSize; i++) {
             Solution antSolution = buildSolutionForAnt();
             antSolution.setFitness(fitnessCalc.calculateFitness(antSolution));
             population.add(antSolution);
         }
+
+        // --- NEW ELITIST FIX ---
+        // Before returning, check if our globalBestSolution is *better*
+        // than the first particle in the list. If so, replace it.
+        // This guarantees the "best ant" is part of the swarm.
+        if (globalBestSolution.getFitness() < population.get(0).getFitness()) {
+            population.set(0, globalBestSolution.clone());
+        }
+        // --- END OF FIX ---
+
         return population;
     }
 
@@ -83,6 +95,8 @@ public class ACO_Scheduler implements SchedulerInterface {
         }
     }
 
+    // In scheduling/ACO_Scheduler.java
+
     private void runACO(int iterations) {
         for (int iter = 0; iter < iterations; iter++) {
             List<Solution> antSolutions = new ArrayList<>(numAnts);
@@ -90,6 +104,14 @@ public class ACO_Scheduler implements SchedulerInterface {
                 Solution antSolution = buildSolutionForAnt();
                 antSolution.setFitness(fitnessCalc.calculateFitness(antSolution));
                 antSolutions.add(antSolution);
+
+                // --- FIX: Initialize gBest with the very first ant solution ---
+                // This guarantees globalBestSolution is never empty and
+                // prevents the "0.0000" fitness bug.
+                if (iter == 0 && i == 0) {
+                    globalBestSolution = antSolution.clone();
+                }
+                // --- END OF FIX ---
             }
 
             // Update global best

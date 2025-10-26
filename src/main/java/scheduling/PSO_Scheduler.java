@@ -80,15 +80,25 @@ public class PSO_Scheduler implements SchedulerInterface {
         return globalBestSolution;
     }
 
+    // ... inside PSO_Scheduler.java class ...
+
     private void initialize(List<Solution> initialSwarm, List<Vm> vmList, List<Host> hostList) {
         this.vmList = vmList;
         this.hostList = hostList;
-        this.globalBestSolution = new Solution();
 
         this.particles = new Solution[populationSize];
         this.pBestSolutions = new Solution[populationSize];
         this.velocities = new double[populationSize][vmList.size()];
         Random rand = new Random();
+
+        // --- CORRECTION: GUARANTEE G-BEST IS A REAL SOLUTION ---
+        if (initialSwarm.isEmpty()) {
+            throw new RuntimeException("Initial swarm cannot be empty!");
+        }
+        // Initialize gBest to the first particle.
+        // This prevents returning an empty/new Solution() if no feasible solution is found.
+        this.globalBestSolution = initialSwarm.get(0).clone();
+        // --- END OF CORRECTION ---
 
         for (int i = 0; i < populationSize; i++) {
             particles[i] = initialSwarm.get(i);
@@ -99,6 +109,7 @@ public class PSO_Scheduler implements SchedulerInterface {
                 velocities[i][j] = rand.nextDouble() * 2 - 1; // Random value between -1 and 1
             }
 
+            // Check if this particle is better than the (now non-empty) gBest
             if (particles[i].getFitness() < globalBestSolution.getFitness()) {
                 globalBestSolution = particles[i].clone();
             }
