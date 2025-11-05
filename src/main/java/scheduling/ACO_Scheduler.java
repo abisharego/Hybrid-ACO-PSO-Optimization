@@ -14,7 +14,7 @@ import java.util.*;
 public class ACO_Scheduler implements SchedulerInterface {
 
     private final int numAnts;
-    private final int maxIterations;
+    private int maxIterations;
     private final double alpha; // Pheromone influence
     private final double beta;  // Heuristic influence
     private final double rho;   // Evaporation rate
@@ -202,5 +202,11 @@ public class ACO_Scheduler implements SchedulerInterface {
                 pheromoneTrails[vmIndex][hostIndex] += deposit;
             }
         }
+
+    }
+    // In ACO_Scheduler.java, add this second constructor:
+    public ACO_Scheduler(ConfigReader config, FitnessCalculator fitnessCalc, int overrideIterations) {
+        this(config, fitnessCalc); // Calls the main constructor
+        this.maxIterations = overrideIterations; // But then overrides the iteration count
     }
 }

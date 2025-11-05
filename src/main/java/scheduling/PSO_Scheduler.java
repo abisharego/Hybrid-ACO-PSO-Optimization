@@ -14,7 +14,7 @@ import java.util.*;
  */
 public class PSO_Scheduler implements SchedulerInterface {
 
-    private final int maxIterations;
+    private int maxIterations;
     private final int populationSize;
     private final double w;  // Inertia
     private final double c1; // Cognitive
@@ -178,5 +178,10 @@ public class PSO_Scheduler implements SchedulerInterface {
             swarm.add(s);
         }
         return swarm;
+    }
+    // In PSO_Scheduler.java, add this second constructor:
+    public PSO_Scheduler(ConfigReader config, FitnessCalculator fitnessCalc, int overrideIterations) {
+        this(config, fitnessCalc); // Calls the main constructor
+        this.maxIterations = overrideIterations; // But then overrides the iteration count
     }
 }
