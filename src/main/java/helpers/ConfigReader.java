@@ -5,7 +5,6 @@ import java.util.Properties;
 
 /**
  * Reads the config.properties file.
- * This version includes logic to clean comments and whitespace from values.
  */
 public class ConfigReader {
     private final Properties properties = new Properties();
@@ -33,7 +32,6 @@ public class ConfigReader {
             throw new RuntimeException("Missing configuration key: " + key);
         }
 
-        // --- FIX IS HERE ---
         // 1. Check for an inline comment
         if (rawValue.contains("#")) {
             // Get only the part *before* the comment
@@ -42,7 +40,6 @@ public class ConfigReader {
 
         // 2. Remove any leading/trailing whitespace
         return rawValue.trim();
-        // --- END OF FIX ---
     }
 
     public double getDouble(String key) {
@@ -55,12 +52,10 @@ public class ConfigReader {
         return Integer.parseInt(cleanValue(key));
     }
 
-    // In your main method:
     public static void main(String[] args) {
         // Test the reader
         ConfigReader config = new ConfigReader("config.properties");
 
-        // This will now work!
         double alpha = config.getDouble("aco.alpha");
         System.out.println("Successfully read aco.alpha: " + alpha);
 

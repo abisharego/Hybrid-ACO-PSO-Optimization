@@ -1,7 +1,7 @@
 package scheduling;
 
+import helpers.AdvancedFitnessCalculator;
 import helpers.ConfigReader;
-import helpers.FitnessCalculator;
 import helpers.Solution;
 import org.cloudbus.cloudsim.hosts.Host;
 import org.cloudbus.cloudsim.vms.Vm;
@@ -20,7 +20,7 @@ public class PSO_Scheduler implements SchedulerInterface {
     private final double c1; // Cognitive
     private final double c2; // Social
 
-    private final FitnessCalculator fitnessCalc;
+    private final AdvancedFitnessCalculator fitnessCalc;
     private List<Vm> vmList;
     private List<Host> hostList;
     private Solution globalBestSolution;
@@ -30,7 +30,7 @@ public class PSO_Scheduler implements SchedulerInterface {
     private Solution[] pBestSolutions;
     private double[][] velocities;
 
-    public PSO_Scheduler(ConfigReader config, FitnessCalculator fitnessCalc) {
+    public PSO_Scheduler(ConfigReader config, AdvancedFitnessCalculator fitnessCalc) {
         this.maxIterations = config.getInt("pso.iterations");
         this.populationSize = config.getInt("pso.population");
         this.w = config.getDouble("pso.w");
@@ -39,10 +39,14 @@ public class PSO_Scheduler implements SchedulerInterface {
         this.fitnessCalc = fitnessCalc;
     }
 
+    public PSO_Scheduler(ConfigReader config, AdvancedFitnessCalculator fitnessCalc, int overrideIterations) {
+        this(config, fitnessCalc); // Calls the main constructor
+        this.maxIterations = overrideIterations; // But then overrides the iteration count
+    }
+
     @Override
     public Solution solve(List<Vm> vmList, List<Host> hostList) {
         // This is the "standalone" PSO. It initializes its swarm RANDOMLY.
-        // This is *designed* to be inefficient to prove the hybrid is better.
         List<Solution> randomSwarm = createRandomSwarm(vmList, hostList);
         return solveWithInitialSwarm(randomSwarm, vmList, hostList);
     }
@@ -63,7 +67,7 @@ public class PSO_Scheduler implements SchedulerInterface {
                 updatePosition(i);
 
                 // 3. Calculate fitness of new position
-                double fitness = fitnessCalc.calculateFitness(particles[i]);
+                double fitness = fitnessCalc.calculateFitness(particles[i], vmList);
                 particles[i].setFitness(fitness);
 
                 // 4. Update pBest
@@ -80,8 +84,6 @@ public class PSO_Scheduler implements SchedulerInterface {
         return globalBestSolution;
     }
 
-    // ... inside PSO_Scheduler.java class ...
-
     private void initialize(List<Solution> initialSwarm, List<Vm> vmList, List<Host> hostList) {
         this.vmList = vmList;
         this.hostList = hostList;
@@ -91,12 +93,10 @@ public class PSO_Scheduler implements SchedulerInterface {
         this.velocities = new double[populationSize][vmList.size()];
         Random rand = new Random();
 
-        // --- CORRECTION: GUARANTEE G-BEST IS A REAL SOLUTION ---
         if (initialSwarm.isEmpty()) {
             throw new RuntimeException("Initial swarm cannot be empty!");
         }
         // Initialize gBest to the first particle.
-        // This prevents returning an empty/new Solution() if no feasible solution is found.
         this.globalBestSolution = initialSwarm.get(0).clone();
         // --- END OF CORRECTION ---
 
@@ -157,7 +157,12 @@ public class PSO_Scheduler implements SchedulerInterface {
         for (int i = 0; i < vmList.size(); i++) {
             Vm vm = vmList.get(i);
             Host host = s.getMapping().get(vm);
-            pos[i] = hostList.indexOf(host);
+            if (host == null) {
+                // Handle case where a VM might not be mapped in an empty solution
+                pos[i] = -1; // Or some other invalid index
+            } else {
+                pos[i] = hostList.indexOf(host);
+            }
         }
         return pos;
     }
@@ -174,14 +179,9 @@ public class PSO_Scheduler implements SchedulerInterface {
                 mapping.put(vm, host);
             }
             s.setMapping(mapping);
-            s.setFitness(fitnessCalc.calculateFitness(s));
+            s.setFitness(fitnessCalc.calculateFitness(s, vmList));
             swarm.add(s);
         }
         return swarm;
-    }
-    // In PSO_Scheduler.java, add this second constructor:
-    public PSO_Scheduler(ConfigReader config, FitnessCalculator fitnessCalc, int overrideIterations) {
-        this(config, fitnessCalc); // Calls the main constructor
-        this.maxIterations = overrideIterations; // But then overrides the iteration count
     }
 }
