@@ -5,19 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="119b3b9b-8999-4b39-84e4-7e2e5a058b79" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/results.csv" beforeDir="false" afterPath="$PROJECT_DIR$/results.csv" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/HybridSimulationRunner.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/HybridSimulationRunner.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/helpers/ConfigReader.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/helpers/ConfigReader.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/helpers/FitnessCalculator.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/helpers/SimulationFactory.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/helpers/SimulationFactory.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/scheduling/ACO_Scheduler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/scheduling/ACO_Scheduler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/scheduling/Hybrid_Scheduler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/scheduling/Hybrid_Scheduler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/scheduling/PSO_Scheduler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/scheduling/PSO_Scheduler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/config.properties" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/config.properties" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

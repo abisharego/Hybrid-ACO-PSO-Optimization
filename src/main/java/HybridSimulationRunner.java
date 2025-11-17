@@ -234,7 +234,7 @@ public class HybridSimulationRunner {
     }
 
     public static void main(String[] args) {
-        int numberOfRunsPerScenario = 3; // SET RUNS PER HOST COUNT
+        int numberOfRunsPerScenario = 1; // SET RUNS PER HOST COUNT
         String resultsFilename = "results.csv";
         ConfigReader config = new ConfigReader("config.properties"); // Load config once
         List<Integer> hostCounts = getConfiguredHostCounts(); // Get the list of scenarios
