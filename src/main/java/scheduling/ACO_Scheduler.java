@@ -141,7 +141,7 @@ public class ACO_Scheduler implements SchedulerInterface {
     private Host selectHostForVm(Vm vm, Solution currentAntSolution,
                                  Map<Host, Double> currentHostCpuMipsLoad,
                                  Map<Host, Double> currentHostRamLoad,
-                                 Map<Host, Double> currentHostNetworkIoLoad) { // <-- NEW PARAM
+                                 Map<Host, Double> currentHostNetworkIoLoad) {
 
         int vmIndex = vmList.indexOf(vm);
         double[] probabilities = new double[hostList.size()];
