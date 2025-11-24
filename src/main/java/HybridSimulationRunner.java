@@ -208,7 +208,7 @@ public class HybridSimulationRunner {
     }
 
     private static List<Integer> getConfiguredHostCounts() {
-        return List.of(16, 18, 20, 30, 40); 
+        return List.of(15, 20, 25, 30, 35, 40); 
     }
 
     public static void main(String[] args) {
