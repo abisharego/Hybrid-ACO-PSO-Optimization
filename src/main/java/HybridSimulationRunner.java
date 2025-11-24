@@ -1,5 +1,5 @@
-import helpers.ConfigReader;
 import helpers.AdvancedFitnessCalculator;
+import helpers.ConfigReader;
 import helpers.SimulationFactory;
 import helpers.Solution;
 import org.cloudbus.cloudsim.hosts.Host;
@@ -19,10 +19,12 @@ import java.util.List;
 public class HybridSimulationRunner {
 
     private final ConfigReader config;
-    private final AdvancedFitnessCalculator fitnessCalc;
+    private final AdvancedFitnessCalculator fitnessCalc; // <-- 2. CHANGE this field type
     private final int runNumber;
     private final int hostCount;
     private List<ResultData> currentRunResults;
+
+    // --- Store vmList and hostList as fields ---
     private final List<Vm> vmList;
     private final List<Host> hostList;
 
@@ -30,13 +32,12 @@ public class HybridSimulationRunner {
         int run;
         int hosts;
         String algorithmName;
-        long duration;
         double fitness;
+        long duration;
         double power;
         double load;
         double network;
         double link;
-
         ResultData(int runNo, int hostCnt, String name, long dur,
                    double fit, double p, double l, double n, double k) {
             this.run = runNo;
@@ -55,75 +56,95 @@ public class HybridSimulationRunner {
         this.runNumber = runNumber;
         this.hostCount = hostCount;
         this.config = config;
-        this.fitnessCalc = new AdvancedFitnessCalculator(config);
+        this.fitnessCalc = new AdvancedFitnessCalculator(config); // <-- 3. CHANGE this instantiation
         this.currentRunResults = new ArrayList<>();
 
+        // --- CREATE ENTITIES AND NETWORK DATA ---
         System.out.printf("--- Creating Environment for Run #%d (%d Hosts) ---%n", runNumber, hostCount);
         this.hostList = SimulationFactory.createHostList(hostCount);
         this.vmList = SimulationFactory.createVmList(config.getInt("simulation.vms"));
 
+        // NEW: Create the static network matrices
         SimulationFactory.createHostHopMatrix(this.hostList);
         SimulationFactory.createVmTrafficMatrix(this.vmList);
+
+        System.out.printf("Created %d Hosts, %d VMs, and Network Matrices.%n", hostList.size(), vmList.size());
     }
 
     public void runSingleSimulationScenario() {
         System.out.printf("--- Starting Run #%d with %d Hosts ---%n", runNumber, hostCount);
 
+        // --- 1. CREATE ALGORITHMS ---
+        // Create the two "standalone" competitors using their full iterations from config
         ACO_Scheduler aco = new ACO_Scheduler(config, fitnessCalc, config.getInt("aco.iterations"));
         PSO_Scheduler pso = new PSO_Scheduler(config, fitnessCalc, config.getInt("pso.iterations"));
+
+        // Create the hybrid "refiner" engine
         Hybrid_Scheduler hybrid = new Hybrid_Scheduler(config, fitnessCalc);
 
+        // --- 2. RUN STANDALONE ALGORITHMS (THE "SCOUTS") ---
+        // These results will be used for BOTH the report AND as input for the hybrid
+
+        // Run ACO
         Solution acoSolution = runAlgorithm("ACO", aco, vmList, hostList);
+
+        // Run PSO
         Solution psoSolution = runAlgorithm("PSO", pso, vmList, hostList);
+
+        // --- 3. RUN HYBRID ALGORITHM (THE "REFINEMENT") ---
+        // This is a 100% fair comparison.
 
         System.out.println("Running Hybrid ACO-PSO (Refinement Stage)...");
         long hybridStartTime = System.currentTimeMillis();
+        // Pass the *results* from the standalone runs directly to the hybrid
         Solution hybridSolution = hybrid.solve(vmList, hostList, acoSolution, psoSolution);
         long hybridEndTime = System.currentTimeMillis();
 
         long hybridRefinementDuration = hybridEndTime - hybridStartTime;
+        // The "Total" hybrid time is the time of its scouts + its refinement
+        // We assume the scouts run in parallel, so we take the *slowest* scout time
         long acoDuration = getDurationFromResult("ACO");
         long psoDuration = getDurationFromResult("PSO");
         long totalHybridTime = Math.max(acoDuration, psoDuration) + hybridRefinementDuration;
 
         double hybridFitness = fitnessCalc.calculateFitness(hybridSolution, vmList);
+        System.out.printf("Finished Hybrid in %d ms (Total: %d ms). Best Fitness: %s%n",
+                hybridRefinementDuration, totalHybridTime, (hybridFitness == Double.MAX_VALUE ? "Infinity (Failed)" : String.format("%.4f", hybridFitness)));
 
-        System.out.printf("Finished Hybrid in %d ms. Best Fitness: %s%n",
-                hybridRefinementDuration, (hybridFitness == Double.MAX_VALUE ? "Infinity (Failed)" : String.format("%.4f", hybridFitness)));
-
-        fitnessCalc.calculateFitness(hybridSolution, vmList);
-        currentRunResults.add(new ResultData(runNumber, hostCount, "Hybrid_ACO_PSO", totalHybridTime,
+        // --- 4. STORE HYBRID'S FINAL RESULT ---
+        fitnessCalc.calculateFitness(hybridSolution, vmList); // Recalculate to get components
+        currentRunResults.add(new ResultData(runNumber, hostCount, "Hybrid ACO-PSO", totalHybridTime,
                 hybridFitness, fitnessCalc.getLastPower(), fitnessCalc.getLastLoad(),
                 fitnessCalc.getLastNetwork(), fitnessCalc.getLastLink()));
 
+        // --- 5. PRINT & SAVE ---
         printCurrentRunReport();
-
-        // SAVE BOTH CSV AND PROMETHEUS METRICS
-        boolean isFirst = runNumber == 1 && hostCount == getConfiguredHostCounts().get(0);
-        saveResultsToCsv("results.csv", isFirst);
-        saveResultsToPrometheus("simulation_metrics.prom"); // <--- NEW
-
+        saveResultsToCsv("results.csv", runNumber == 1 && hostCount == getConfiguredHostCounts().get(0));
         System.out.printf("--- Finished Run #%d with %d Hosts ---%n%n", runNumber, hostCount);
     }
 
     private Solution runAlgorithm(String name, SchedulerInterface scheduler, List<Vm> vmList, List<Host> hostList) {
-        System.out.printf("Running %s (Standalone)...%n", name);
+        System.out.printf("Running %s (%d Hosts, Run #%d)...%n", name, hostCount, runNumber);
         long startTime = System.currentTimeMillis();
-        Solution bestSolution = scheduler.solve(vmList, hostList);
+        Solution bestSolution = scheduler.solve(vmList, hostList); // Run the algorithm
         long endTime = System.currentTimeMillis();
         long duration = endTime - startTime;
 
         double finalFitness = fitnessCalc.calculateFitness(bestSolution, vmList);
+
         System.out.printf("Finished %s in %d ms. Best Fitness: %s%n",
                 name, duration, (finalFitness == Double.MAX_VALUE ? "Infinity (Failed)" : String.format("%.4f", finalFitness)));
 
+        // Store the result
         currentRunResults.add(new ResultData(runNumber, hostCount, name, duration,
                 finalFitness, fitnessCalc.getLastPower(), fitnessCalc.getLastLoad(),
                 fitnessCalc.getLastNetwork(), fitnessCalc.getLastLink()));
 
-        return bestSolution;
+        return bestSolution; // Return the solution
     }
 
+    // --- ADD THIS HELPER METHOD ---
+    // This just helps the hybrid find the duration of the scout runs
     private long getDurationFromResult(String algorithmName) {
         for (ResultData result : currentRunResults) {
             if (result.algorithmName.equals(algorithmName)) {
@@ -133,63 +154,80 @@ public class HybridSimulationRunner {
         return 0;
     }
 
+    // In HybridSimulationRunner.java
+
+    // --- REPLACE THIS METHOD ---
     private void printCurrentRunReport() {
-        // ... (Same as before) ...
-        System.out.println("--- Report Generated ---");
+        System.out.printf("%n--- Comparison Report (%d Hosts, Run #%d) ---%n", hostCount, runNumber);
+        System.out.println("-----------------------------------------------------------------------------------------------");
+        // Removed "Time (ms)" column
+        System.out.printf("| %-16s | %-18s | %-10s | %-10s | %-12s | %-10s |%n",
+                "Algorithm", "Best Fitness", "Power", "Load", "Network ", "Max Link ");
+        System.out.println("-----------------------------------------------------------------------------------------------");
+
+        for (ResultData result : currentRunResults) {
+            String fitnessStr = (result.fitness == Double.MAX_VALUE) ? "Infinity (Failed)" : String.format("%.2f", result.fitness);
+
+            // Removed result.duration
+            System.out.printf("| %-16s | %-18s | %-10.2f | %-10.4f | %-12.1f | %-10.4f |%n",
+                    result.algorithmName,
+                    fitnessStr,
+                    result.power,
+                    result.load,
+                    result.network,
+                    result.link);
+        }
+        System.out.println("-----------------------------------------------------------------------------------------------");
     }
 
+    // --- REPLACE THIS METHOD ---
     private void saveResultsToCsv(String filename, boolean isFirstRunOverall) {
-        // ... (Same as before) ...
+        File file = new File(filename);
+        boolean writeHeader = isFirstRunOverall || !file.exists() || file.length() == 0;
+
         try (PrintWriter writer = new PrintWriter(new FileWriter(filename, !isFirstRunOverall))) {
-            if (isFirstRunOverall) writer.println("HostCount,Run,Algorithm,BestFitness,Power,Load,Network,Link");
-            for (ResultData r : currentRunResults) {
-                String fit = (r.fitness == Double.MAX_VALUE) ? "FAILED" : String.format("%.4f", r.fitness);
-                writer.printf("%d,%d,%s,%s,%.2f,%.4f,%.0f,%.4f%n", r.hosts, r.run, r.algorithmName, fit, r.power, r.load, r.network, r.link);
+            if (writeHeader) {
+                // Removed "TimeMs" from header
+                writer.println("HostCount,Run,Algorithm,BestFitness,Power,Load,Network,Link");
             }
-        } catch (IOException e) { e.printStackTrace(); }
-    }
 
-    // --- NEW METHOD: Export to Prometheus Format ---
-    private void saveResultsToPrometheus(String filename) {
-        // Note: Prometheus Textfile Collector overwrites the file every time.
-        // We append new metrics to a list, but we write the whole file fresh for the current state.
-        // For simplicity, we will just append the latest run's data.
-
-        try (PrintWriter writer = new PrintWriter(new FileWriter(filename, true))) { // Append mode
-            for (ResultData r : currentRunResults) {
-                if (r.fitness == Double.MAX_VALUE) continue; // Skip failed runs
-
-                // Create clean labels
-                String labels = String.format("algorithm=\"%s\",hosts=\"%d\",run=\"%d\"", r.algorithmName, r.hosts, r.run);
-
-                // Write metrics
-                writer.printf("simulation_fitness{%s} %.4f%n", labels, r.fitness);
-                writer.printf("simulation_power_watts{%s} %.2f%n", labels, r.power);
-                writer.printf("simulation_load_variance{%s} %.6f%n", labels, r.load);
-                writer.printf("simulation_network_traffic{%s} %.0f%n", labels, r.network);
-                writer.printf("simulation_link_utilization{%s} %.6f%n", labels, r.link);
-                writer.printf("simulation_duration_ms{%s} %d%n", labels, r.duration);
+            for (ResultData result : currentRunResults) {
+                String fitnessCsv = (result.fitness == Double.MAX_VALUE) ? "FAILED" : String.format("%.4f", result.fitness);
+                // Removed result.duration
+                writer.printf("%d,%d,%s,%s,%.2f,%.4f,%.2f,%.4f%n",
+                        result.hosts,
+                        result.run,
+                        result.algorithmName,
+                        fitnessCsv,
+                        result.power,
+                        result.load,
+                        result.network,
+                        result.link);
+            }
+            if (isFirstRunOverall) {
+                System.out.printf("%nResults will be saved/appended to %s%n", filename);
             }
         } catch (IOException e) {
-            System.err.println("Error writing Prometheus metrics: " + e.getMessage());
+            System.err.println("Error writing results to CSV file: " + e.getMessage());
         }
     }
 
     private static List<Integer> getConfiguredHostCounts() {
-        return List.of(16, 18, 20, 30, 40);
+        // Defining the different scenarios
+        return List.of(15, 20, 25, 30, 35, 40);
     }
 
     public static void main(String[] args) {
-        int numberOfRunsPerScenario = 5;
+        int numberOfRunsPerScenario = 1; // SETS RUNS PER HOST COUNT
         String resultsFilename = "results.csv";
-        // Clear old metrics
-        new File("simulation_metrics.prom").delete();
-
-        ConfigReader config = new ConfigReader("config.properties");
-        List<Integer> hostCounts = getConfiguredHostCounts();
+        ConfigReader config = new ConfigReader("config.properties"); // Load config once
+        List<Integer> hostCounts = getConfiguredHostCounts(); // Get the list of scenarios
 
         File oldResults = new File(resultsFilename);
-        if (oldResults.exists()) oldResults.delete();
+        if (oldResults.exists()) {
+            System.out.println("Deleting old results file: " + resultsFilename);
+            oldResults.delete();
+        }
 
         try {
             for (int h = 0; h < hostCounts.size(); h++) {
@@ -200,7 +238,10 @@ public class HybridSimulationRunner {
                     runner.runSingleSimulationScenario();
                 }
             }
+            System.out.println("\n === All scenarios complete. Final results are in " + resultsFilename + " ===");
+
         } catch (Exception e) {
+            System.err.println("An error occurred during the simulation runs.");
             e.printStackTrace();
         }
     }
