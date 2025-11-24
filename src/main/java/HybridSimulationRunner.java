@@ -162,10 +162,14 @@ public class HybridSimulationRunner {
     }
 
     private void saveResultsToCsv(String filename, boolean isFirstRunOverall) {
-        try (PrintWriter writer = new PrintWriter(new FileWriter(filename, !isFirstRunOverall))) { 
+        File file = new File(filename);
+        boolean writeHeader = isFirstRunOverall || !file.exists() || file.length() == 0;
+
+        try (PrintWriter writer = new PrintWriter(new FileWriter(filename, !writeHeader))) { 
             if (writeHeader) {
                 writer.println("HostCount,Run,Algorithm,BestFitness,Power,Load,Network,Link");
             }
+            
             for (ResultData result : currentRunResults) {
                 String fitnessCsv = (result.fitness == Double.MAX_VALUE) ? "FAILED" : String.format("%.4f", result.fitness);
                 writer.printf("%d,%d,%s,%s,%.2f,%.4f,%.0f,%.4f%n",
@@ -185,14 +189,11 @@ public class HybridSimulationRunner {
             System.err.println("Error writing results to CSV file: " + e.getMessage());
         }
     }
-
-    // --- THE MISSING METHOD ---
     private void saveResultsToPrometheus(String filename) {
         try (PrintWriter writer = new PrintWriter(new FileWriter(filename))) { // Overwrite mode
             for (ResultData r : currentRunResults) {
                 if (r.fitness == Double.MAX_VALUE) continue;
                 
-                // Clean algorithm name for Prometheus labels (no spaces)
                 String algoName = r.algorithmName.replace(" ", "_");
                 
                 String labels = String.format("algorithm=\"%s\",hosts=\"%d\",run=\"%d\"", algoName, r.hosts, r.run);
