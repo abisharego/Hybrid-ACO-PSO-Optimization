@@ -1,5 +1,5 @@
-import helpers.AdvancedFitnessCalculator;
 import helpers.ConfigReader;
+import helpers.AdvancedFitnessCalculator;
 import helpers.SimulationFactory;
 import helpers.Solution;
 import org.cloudbus.cloudsim.hosts.Host;
@@ -23,12 +23,9 @@ public class HybridSimulationRunner {
     private final int runNumber;
     private final int hostCount;
     private List<ResultData> currentRunResults;
-
-    // Simulation Entities
     private final List<Vm> vmList;
     private final List<Host> hostList;
 
-    // Data structure for results
     private static class ResultData {
         int run;
         int hosts;
@@ -62,66 +59,57 @@ public class HybridSimulationRunner {
         this.currentRunResults = new ArrayList<>();
 
         System.out.printf("--- Creating Environment for Run #%d (%d Hosts) ---%n", runNumber, hostCount);
-
-        // Create physical infrastructure
         this.hostList = SimulationFactory.createHostList(hostCount);
-        // Create workload
         this.vmList = SimulationFactory.createVmList(config.getInt("simulation.vms"));
-
-        // Create network model
+        
         SimulationFactory.createHostHopMatrix(this.hostList);
         SimulationFactory.createVmTrafficMatrix(this.vmList);
-
+        
         System.out.printf("Created %d Hosts, %d VMs, and Network Matrices.%n", hostList.size(), vmList.size());
     }
 
     public void runSingleSimulationScenario() {
         System.out.printf("--- Starting Run #%d with %d Hosts ---%n", runNumber, hostCount);
 
-        // 1. Initialize Schedulers
         ACO_Scheduler aco = new ACO_Scheduler(config, fitnessCalc, config.getInt("aco.iterations"));
         PSO_Scheduler pso = new PSO_Scheduler(config, fitnessCalc, config.getInt("pso.iterations"));
         Hybrid_Scheduler hybrid = new Hybrid_Scheduler(config, fitnessCalc);
 
-        // 2. Run Standalone Algorithms (The "Scouts")
+        // Run Scouts
         Solution acoSolution = runAlgorithm("ACO", aco, vmList, hostList);
         Solution psoSolution = runAlgorithm("PSO", pso, vmList, hostList);
 
-        // 3. Run Hybrid Algorithm (The "Refinement")
+        // Run Hybrid Refinement
         System.out.println("Running Hybrid ACO-PSO (Refinement Stage)...");
         long hybridStartTime = System.currentTimeMillis();
-
-        // Pass scout solutions to the hybrid
         Solution hybridSolution = hybrid.solve(vmList, hostList, acoSolution, psoSolution);
-
         long hybridEndTime = System.currentTimeMillis();
+        
         long hybridRefinementDuration = hybridEndTime - hybridStartTime;
-
-        // Calculate total hybrid time (Slowest Scout + Refinement)
         long acoDuration = getDurationFromResult("ACO");
         long psoDuration = getDurationFromResult("PSO");
         long totalHybridTime = Math.max(acoDuration, psoDuration) + hybridRefinementDuration;
-
+        
         double hybridFitness = fitnessCalc.calculateFitness(hybridSolution, vmList);
-
-        System.out.printf("Finished Hybrid in %d ms (Total: %d ms). Best Fitness: %s%n",
-                hybridRefinementDuration, totalHybridTime,
-                (hybridFitness == Double.MAX_VALUE ? "Infinity (Failed)" : String.format("%.4f", hybridFitness)));
+        
+        System.out.printf("Finished Hybrid in %d ms (Refinement). Best Fitness: %s%n",
+                hybridRefinementDuration, (hybridFitness == Double.MAX_VALUE ? "Infinity (Failed)" : String.format("%.4f", hybridFitness)));
 
         // Store Hybrid Result
-        // Re-calculate to ensure component metrics (power, load, etc.) are updated in the calculator
-        fitnessCalc.calculateFitness(hybridSolution, vmList);
+        fitnessCalc.calculateFitness(hybridSolution, vmList); 
         currentRunResults.add(new ResultData(runNumber, hostCount, "Hybrid ACO-PSO", totalHybridTime,
-                hybridFitness, fitnessCalc.getLastPower(), fitnessCalc.getLastLoad(),
-                fitnessCalc.getLastNetwork(), fitnessCalc.getLastLink()));
-
-        // 4. Output Results
+                                 hybridFitness, fitnessCalc.getLastPower(), fitnessCalc.getLastLoad(),
+                                 fitnessCalc.getLastNetwork(), fitnessCalc.getLastLink()));
+        
+        // Print & Save
         printCurrentRunReport();
-
-        // Save to CSV (Header only for the very first run of the very first scenario)
-        boolean isFirstRunOverall = (runNumber == 1 && hostCount == getConfiguredHostCounts().get(0));
-        saveResultsToCsv("results.csv", isFirstRunOverall);
-
+        
+        boolean isFirst = runNumber == 1 && hostCount == getConfiguredHostCounts().get(0);
+        saveResultsToCsv("results.csv", isFirst);
+        
+        // --- THIS IS THE MISSING LINE THAT FIXES YOUR ERROR ---
+        saveResultsToPrometheus("simulation_metrics.prom"); 
+        
         System.out.printf("--- Finished Run #%d with %d Hosts ---%n%n", runNumber, hostCount);
     }
 
@@ -137,9 +125,9 @@ public class HybridSimulationRunner {
                 name, duration, (finalFitness == Double.MAX_VALUE ? "Infinity (Failed)" : String.format("%.4f", finalFitness)));
 
         currentRunResults.add(new ResultData(runNumber, hostCount, name, duration,
-                finalFitness, fitnessCalc.getLastPower(), fitnessCalc.getLastLoad(),
-                fitnessCalc.getLastNetwork(), fitnessCalc.getLastLink()));
-
+                             finalFitness, fitnessCalc.getLastPower(), fitnessCalc.getLastLoad(),
+                             fitnessCalc.getLastNetwork(), fitnessCalc.getLastLink()));
+        
         return bestSolution;
     }
 
@@ -154,62 +142,82 @@ public class HybridSimulationRunner {
 
     private void printCurrentRunReport() {
         System.out.printf("%n--- Comparison Report (%d Hosts, Run #%d) ---%n", hostCount, runNumber);
-        System.out.println("-----------------------------------------------------------------------------------------------");
-        System.out.printf("| %-16s | %-18s | %-10s | %-10s | %-12s | %-10s |%n",
-                "Algorithm", "Best Fitness", "Power", "Load", "Network ", "Max Link ");
-        System.out.println("-----------------------------------------------------------------------------------------------");
+        System.out.println("-----------------------------------------------------------------------------------------------------");
+        System.out.printf("| %-16s | %-12s | %-10s | %-10s | %-12s | %-10s |%n",
+                          "Algorithm", "Best Fitness", "Power", "Load", "Network", "Max Link %");
+        System.out.println("-----------------------------------------------------------------------------------------------------");
 
         for (ResultData result : currentRunResults) {
-            String fitnessStr = (result.fitness == Double.MAX_VALUE) ? "Infinity (Failed)" : String.format("%.2f", result.fitness);
-            System.out.printf("| %-16s | %-18s | %-10.2f | %-10.4f | %-12.1f | %-10.4f |%n",
-                    result.algorithmName,
-                    fitnessStr,
-                    result.power,
-                    result.load,
-                    result.network,
-                    result.link);
+            String fitnessStr = (result.fitness == Double.MAX_VALUE) ? "Infinity" : String.format("%.2f", result.fitness);
+            System.out.printf("| %-16s | %-12s | %-10.2f | %-10.4f | %-12.0f | %-10.4f |%n",
+                              result.algorithmName,
+                              fitnessStr,
+                              result.power,
+                              result.load,
+                              result.network,
+                              result.link);
         }
-        System.out.println("-----------------------------------------------------------------------------------------------");
+        System.out.println("-----------------------------------------------------------------------------------------------------");
         System.out.println("*Lower fitness is better.");
     }
 
     private void saveResultsToCsv(String filename, boolean isFirstRunOverall) {
-        try (PrintWriter writer = new PrintWriter(new FileWriter(filename, !isFirstRunOverall))) {
-            if (isFirstRunOverall) {
+        try (PrintWriter writer = new PrintWriter(new FileWriter(filename, !isFirstRunOverall))) { 
+            if (writeHeader) {
                 writer.println("HostCount,Run,Algorithm,BestFitness,Power,Load,Network,Link");
             }
-
-            for (ResultData r : currentRunResults) {
-                String fit = (r.fitness == Double.MAX_VALUE) ? "FAILED" : String.format("%.4f", r.fitness);
-                // Format Network as Integer (%.0f) for cleaner CSV
+            for (ResultData result : currentRunResults) {
+                String fitnessCsv = (result.fitness == Double.MAX_VALUE) ? "FAILED" : String.format("%.4f", result.fitness);
                 writer.printf("%d,%d,%s,%s,%.2f,%.4f,%.0f,%.4f%n",
-                        r.hosts, r.run, r.algorithmName, fit, r.power, r.load, r.network, r.link);
+                        result.hosts,
+                        result.run,
+                        result.algorithmName,
+                        fitnessCsv,
+                        result.power,
+                        result.load,
+                        result.network,
+                        result.link);
             }
             if (isFirstRunOverall) {
-                System.out.printf("%nResults will be saved/appended to %s%n", filename);
+                 System.out.printf("%nResults will be saved/appended to %s%n", filename);
             }
         } catch (IOException e) {
             System.err.println("Error writing results to CSV file: " + e.getMessage());
         }
     }
 
+    // --- THE MISSING METHOD ---
+    private void saveResultsToPrometheus(String filename) {
+        try (PrintWriter writer = new PrintWriter(new FileWriter(filename))) { // Overwrite mode
+            for (ResultData r : currentRunResults) {
+                if (r.fitness == Double.MAX_VALUE) continue;
+                
+                // Clean algorithm name for Prometheus labels (no spaces)
+                String algoName = r.algorithmName.replace(" ", "_");
+                
+                String labels = String.format("algorithm=\"%s\",hosts=\"%d\",run=\"%d\"", algoName, r.hosts, r.run);
+                
+                writer.printf("simulation_fitness{%s} %.4f%n", labels, r.fitness);
+                writer.printf("simulation_power_watts{%s} %.2f%n", labels, r.power);
+                writer.printf("simulation_network_traffic{%s} %.0f%n", labels, r.network);
+            }
+        } catch (IOException e) {
+            System.err.println("Error writing Prometheus metrics: " + e.getMessage());
+        }
+    }
+
     private static List<Integer> getConfiguredHostCounts() {
-        // The scenarios you want to run
-        return List.of(15, 20, 25, 30, 35, 40);
+        return List.of(16, 18, 20, 30, 40); 
     }
 
     public static void main(String[] args) {
-        int numberOfRunsPerScenario = 1; 
+        int numberOfRunsPerScenario = 5; 
         String resultsFilename = "results.csv";
         ConfigReader config = new ConfigReader("config.properties");
         List<Integer> hostCounts = getConfiguredHostCounts();
 
-        // Delete old file to start fresh
         File oldResults = new File(resultsFilename);
-        if (oldResults.exists()) {
-            System.out.println("Deleting old results file: " + resultsFilename);
-            oldResults.delete();
-        }
+        if (oldResults.exists()) oldResults.delete();
 
         try {
             for (int h = 0; h < hostCounts.size(); h++) {
@@ -220,10 +228,7 @@ public class HybridSimulationRunner {
                     runner.runSingleSimulationScenario();
                 }
             }
-            System.out.println("\n === All scenarios complete. Final results are in " + resultsFilename + " ===");
-
         } catch (Exception e) {
-            System.err.println("An error occurred during the simulation runs.");
             e.printStackTrace();
         }
     }
