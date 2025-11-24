@@ -179,12 +179,3 @@ with st.expander("View Raw Data Table"):
         }),
         use_container_width=True
     )
-
-# --- SECTION 5: CLOUD INFRASTRUCTURE MONITORING ---
-st.markdown("---")
-st.subheader("Live Cloud Infrastructure (AWS)")
-st.markdown("Real-time monitoring of the EC2 instance running the simulation.")
-
-GRAFANA_URL = "http://13.48.42.249:3000/public-dashboards/84775fb8902b4b829d54f404940b293c&kiosk"
-
-st.components.v1.iframe(src=GRAFANA_URL, height=600, scrolling=True)
