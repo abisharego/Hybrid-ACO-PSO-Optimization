@@ -212,7 +212,7 @@ public class HybridSimulationRunner {
     }
 
     public static void main(String[] args) {
-        int numberOfRunsPerScenario = 5; 
+        int numberOfRunsPerScenario = 1; 
         String resultsFilename = "results.csv";
         ConfigReader config = new ConfigReader("config.properties");
         List<Integer> hostCounts = getConfiguredHostCounts();
